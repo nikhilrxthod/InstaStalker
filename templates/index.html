@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<title>Stalker Dashboard</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+
+:root{
+--bg:#000;
+--card:#0a0a0a;
+--border:#222;
+--text:#fff;
+--accent:crimson;
+--mono:#00ff90;
+}
+
+*{
+box-sizing:border-box;
+margin:0;
+padding:0;
+}
+
+body{
+font-family:Arial, Helvetica, sans-serif;
+background:var(--bg);
+color:var(--text);
+padding:30px;
+min-width: 380px;
+line-height:1.5;
+}
+
+h1,h2{
+margin-bottom:12px;
+}
+
+h1{
+font-size:26px;
+}
+
+h2{
+font-size:18px;
+opacity:.9;
+}
+
+.container{
+margin:auto;
+display:flex;
+flex-direction:column;
+gap:10px;
+max-width:1200px;
+}
+
+.card{
+background:var(--card);
+border:1px solid var(--border);
+border-radius:8px;
+padding:20px;
+}
+
+.controls{
+display:flex;
+flex-wrap:wrap;
+gap:10px;
+margin-top:10px;
+}
+
+button{
+padding:10px 18px;
+border:1px solid var(--border);
+background:#111;
+color:var(--text);
+cursor:pointer;
+border-radius:6px;
+transition:.2s;
+font-size:14px;
+}
+
+button:hover{
+background:var(--accent);
+border-color:var(--accent);
+}
+
+button:focus{
+outline:none;
+border-color:var(--accent);
+}
+
+#schedulerStatus{
+margin-top:6px;
+font-weight:bold;
+}
+
+pre{
+background:#000;
+color:var(--mono);
+padding:18px;
+border:1px solid var(--border);
+border-radius:6px;
+height:350px;
+overflow-y:auto;
+font-family:monospace;
+margin-top:12px;
+}
+
+textarea{
+width:100%;
+height:300px;
+background:#000;
+color:var(--mono);
+border:1px solid var(--border);
+border-radius:6px;
+padding:12px;
+font-family:monospace;
+margin-top:10px;
+}
+
+select{
+width:100%;
+padding:10px;
+background:#000;
+color:var(--text);
+border:1px solid var(--border);
+border-radius:6px;
+margin-top:10px;
+}
+
+@media (max-width:768px){
+
+body{
+padding:15px;
+}
+
+h1{
+font-size:22px;
+}
+
+.controls{
+flex-direction:column;
+}
+
+button{
+width:100%;
+}
+
+pre{
+height:280px;
+}
+
+textarea{
+height:250px;
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="card">
+
+<h1>Stalker Dashboard</h1>
+
+<div class="controls">
+<button onclick="login()">Login</button>
+<button onclick="monitor()">Run Monitor</button>
+<button onclick="stopScript()">Stop</button>
+<button onclick="clearOutput()">Clear</button>
+<button onclick="loadFiles()">List Data Files</button>
+<button onclick="saveFile()">Save File</button>
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h2>Latest Report</h2>
+
+<pre id="output">{{ data }}</pre>
+
+</div>
+
+
+<div class="card">
+
+<h2>monitor_data Files</h2>
+
+<select id="fileList"></select>
+
+<textarea id="fileEditor"></textarea>
+
+</div>
+
+</div>
+
+<script>
+
+let source = null;
+
+function login(){
+
+if(source){
+source.close();
+}
+
+document.getElementById("output").textContent = "";
+
+source = new EventSource("/login");
+
+source.onmessage = function(event){
+
+if(event.data === "__END__"){
+source.close();
+return;
+}
+
+document.getElementById("output").textContent += event.data + "\n";
+
+const output = document.getElementById("output");
+output.scrollTop = output.scrollHeight;
+
+};
+
+source.onerror = function(){
+if(source){
+source.close();
+}
+};
+
+}
+
+function monitor(){
+
+if(source){
+source.close();
+}
+
+document.getElementById("output").textContent = "";
+
+source = new EventSource("/monitor");
+
+source.onmessage = function(event){
+
+if(event.data === "__END__"){
+source.close();
+return;
+}
+
+document.getElementById("output").textContent += event.data + "\n";
+
+const output = document.getElementById("output");
+output.scrollTop = output.scrollHeight;
+
+};
+
+source.onerror = function(){
+if(source){
+source.close();
+}
+};
+
+}
+
+function stopScript(){
+
+fetch("/stop");
+
+if(source){
+source.close();
+}
+
+document.getElementById("output").textContent += "\n\n[PROCESS STOPPED]\n";
+
+}
+
+function clearOutput(){
+
+const output = document.getElementById("output")
+
+output.textContent = ""
+output.scrollTop = 0
+
+}
+
+async function loadFiles(){
+
+const res = await fetch("/files")
+const files = await res.json()
+
+const list = document.getElementById("fileList")
+list.innerHTML=""
+
+files.forEach(f=>{
+const opt=document.createElement("option")
+opt.value=f
+opt.text=f
+list.appendChild(opt)
+})
+
+loadFile()
+
+}
+
+async function loadFile(){
+
+const path=document.getElementById("fileList").value
+
+const res = await fetch("/file?path="+encodeURIComponent(path))
+const text = await res.text()
+
+document.getElementById("fileEditor").value=text
+
+}
+
+document.getElementById("fileList").onchange = loadFile
+
+
+async function saveFile(){
+
+const path=document.getElementById("fileList").value
+const content=document.getElementById("fileEditor").value
+
+await fetch("/file?path="+encodeURIComponent(path),{
+method:"POST",
+body:content
+})
+
+document.getElementById("output").textContent+="\n[FILE SAVED]\n"
+
+}
+
+</script>
+
+</body>
+
+</html>
